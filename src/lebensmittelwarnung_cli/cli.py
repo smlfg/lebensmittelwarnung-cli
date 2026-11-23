@@ -83,6 +83,12 @@ def build_parser() -> argparse.ArgumentParser:
     suche.add_argument("begriff", nargs="+", metavar="BEGRIFF")
     _add_filters(suche)
     suche.set_defaults(func=_cmd_suche)
+
+    zeige = subparsers.add_parser("zeige", help="eine Meldung im Detail ansehen")
+    zeige.add_argument("auswahl", nargs="+", metavar="AUSWAHL")
+    zeige.add_argument("--erster", action="store_true")
+    zeige.add_argument("--json", action="store_true")
+    zeige.set_defaults(func=_cmd_zeige)
     return parser
 
 
@@ -295,6 +301,145 @@ def _cmd_suche(args) -> int:
         return 0
     text = f"{len(results)} Treffer für „{begriff}“"
     _print_list(text, results, json_mode=False, abfrage={})
+    return 0
+
+
+def _detail_url(item: dict) -> str:
+    return item.get("_path") or item.get("url") or ""
+
+
+def _build_detail(item: dict, parsed: dict) -> dict:
+    datum = parsed.get("erstveroeffentlichung") or item.get("datum")
+    detail = {
+        "id": item.get("id"),
+        "datum": datum,
+        "titel": parsed.get("titel") or item.get("titel"),
+        "typ": parsed.get("typ") or item.get("typ"),
+    }
+    for key in (
+        "produkt",
+        "haltbarkeit",
+        "verpackungseinheit",
+        "charge",
+        "hersteller",
+        "gruende",
+        "weitere_informationen",
+        "moegliche_folgen",
+        "bundeslaender",
+        "vertrieb",
+        "empfehlung",
+        "erstveroeffentlichung",
+        "aktualisiert",
+    ):
+        if key in parsed:
+            detail[key] = parsed[key]
+    detail.setdefault("gruende", list(item.get("gruende") or []))
+    detail.setdefault("bundeslaender", [])
+    detail["url"] = item.get("url")
+    return detail
+
+
+def _print_detail(detail: dict) -> None:
+    print(detail.get("titel") or detail.get("id"))
+    labels = [
+        ("haltbarkeit", "Haltbarkeit"),
+        ("verpackungseinheit", "Verpackungseinheit"),
+        ("charge", "Charge"),
+        ("hersteller", "Hersteller"),
+        ("gruende", "Grund"),
+        ("weitere_informationen", "Weitere Informationen"),
+        ("moegliche_folgen", "Mögliche Folgen"),
+        ("bundeslaender", "Betroffene Bundesländer"),
+        ("vertrieb", "Vertrieb über"),
+        ("empfehlung", "Empfehlung"),
+    ]
+    for key, label in labels:
+        value = detail.get(key)
+        if isinstance(value, list):
+            value = ", ".join(str(part) for part in value if part)
+        if value:
+            print(f"{label}: {value}")
+
+
+def _ask_selection(items: list[dict], begriff: str) -> dict | None:
+    print(f"Mehrere Treffer für „{begriff}“", file=sys.stderr)
+    for index, item in enumerate(items, start=1):
+        print(
+            f"{index}) {german_date(item.get('datum'))}  {item.get('titel')}",
+            file=sys.stderr,
+        )
+    for _attempt in range(3):
+        print(f"Auswahl [1-{len(items)}]: ", end="", file=sys.stderr, flush=True)
+        line = sys.stdin.readline()
+        if line == "":
+            raise UsageError("Keine Auswahl getroffen.")
+        value = line.strip()
+        if not value:
+            raise UsageError("Keine Auswahl getroffen.")
+        if value.isdigit() and 1 <= int(value) <= len(items):
+            return items[int(value) - 1]
+        print(f"Ungültige Auswahl. Bitte 1-{len(items)} eingeben.", file=sys.stderr)
+    raise UsageError("Keine gültige Auswahl getroffen.")
+
+
+def _cmd_zeige(args) -> int:
+    begriff = " ".join(args.auswahl).strip()
+    if not begriff:
+        raise UsageError("Bitte eine Kurz-ID oder einen Suchbegriff angeben.")
+    client = Client()
+    html = client.search(begriff=begriff, limit=100)
+    results, _total = parse_list(html)
+    for item in results:
+        item["_begriff"] = begriff
+    if _SHORT_ID_RE.fullmatch(begriff):
+        candidates = [item for item in results if item.get("id") == begriff]
+        if not candidates:
+            raise UsageError(
+                f"Keine Meldung mit der Kurz-ID {begriff} gefunden.",
+                hinweis="Suche mit `lmw suche BEGRIFF` nach der Meldung.",
+            )
+    else:
+        candidates = results
+    if not candidates:
+        raise UsageError(
+            f"Keine Meldung für „{begriff}“ gefunden.",
+            hinweis="Prüfe den Suchbegriff mit `lmw suche BEGRIFF`.",
+        )
+    if len(candidates) > 1 and not args.erster:
+        if sys.stdin.isatty():
+            selected = _ask_selection(candidates, begriff)
+        else:
+            if _json_mode(args):
+                payload = {
+                    "fehler": {
+                        "code": 2,
+                        "art": "usage",
+                        "meldung": f"Mehrere Treffer für „{begriff}“",
+                        "hinweis": "Wähle mit --erster den ersten Treffer "
+                        "oder starte den Befehl im Terminal.",
+                        "kandidaten": [_public_item(item) for item in candidates],
+                    }
+                }
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                for index, item in enumerate(candidates, start=1):
+                    print(
+                        f"{index}) {german_date(item.get('datum'))}  "
+                        f"{item.get('titel')}",
+                        file=sys.stderr,
+                    )
+                print("Hinweis: --erster wählt den ersten Treffer.", file=sys.stderr)
+            return 2
+    else:
+        selected = candidates[0]
+    if selected is None:
+        return 2
+    parsed = parse_detail(client.detail(_detail_url(selected)))
+    detail = _build_detail(selected, parsed)
+    if _json_mode(args):
+        print(json.dumps(detail, ensure_ascii=False))
+    else:
+        _print_detail(detail)
     return 0
 
 
