@@ -78,6 +78,11 @@ def build_parser() -> argparse.ArgumentParser:
     neu = subparsers.add_parser("neu", help="neueste Warnungen anzeigen")
     _add_filters(neu)
     neu.set_defaults(func=_cmd_neu)
+
+    suche = subparsers.add_parser("suche", help="nach Produkt oder Marke suchen")
+    suche.add_argument("begriff", nargs="+", metavar="BEGRIFF")
+    _add_filters(suche)
+    suche.set_defaults(func=_cmd_suche)
     return parser
 
 
@@ -253,6 +258,42 @@ def _cmd_neu(args) -> int:
         text = f"Neueste Warnungen ({', '.join(scope)}): {len(results)} Treffer"
     else:
         text = f"Keine Warnungen ({', '.join(scope)})."
+    _print_list(text, results, json_mode=False, abfrage={})
+    return 0
+
+
+def _cmd_suche(args) -> int:
+    begriff = " ".join(args.begriff).strip()
+    if not begriff:
+        raise UsageError("Bitte einen Suchbegriff angeben.")
+    heute = today()
+    bundeslaender = _resolve_bundeslaender(args.bundesland, use_config=True)
+    gruende = _resolve_gruende(args.grund)
+    typen = _resolve_typen(args.typ)
+    client = Client()
+    results, _total = _fetch(
+        client,
+        begriff=begriff,
+        bundeslaender=bundeslaender,
+        gruende=gruende,
+        typen=typen,
+        tage=args.tage,
+        limit=args.limit,
+        heute=heute,
+    )
+    if _json_mode(args):
+        abfrage = {
+            "begriff": begriff,
+            "bundesland": [BUNDESLAENDER[slug] for slug in bundeslaender],
+            "tage": args.tage,
+            "limit": args.limit,
+        }
+        _print_list("", results, json_mode=True, abfrage=abfrage)
+        return 0
+    if not results:
+        print(f"Keine Treffer für „{begriff}“.")
+        return 0
+    text = f"{len(results)} Treffer für „{begriff}“"
     _print_list(text, results, json_mode=False, abfrage={})
     return 0
 
