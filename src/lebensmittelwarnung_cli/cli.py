@@ -56,13 +56,53 @@ def _limit(value: str) -> int:
     return number
 
 
-def _add_filters(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--bundesland", action="append", metavar="NAME|KÜRZEL")
-    parser.add_argument("--grund", action="append", metavar="GRUND")
-    parser.add_argument("--typ", action="append", metavar="TYP")
-    parser.add_argument("--tage", type=_positive_int, metavar="N")
-    parser.add_argument("--limit", type=_limit, default=20, metavar="N")
-    parser.add_argument("--json", action="store_true")
+def _add_filters(parser: argparse.ArgumentParser, *, tage_default: str) -> None:
+    parser.add_argument(
+        "--bundesland",
+        action="append",
+        metavar="NAME|KÜRZEL",
+        help=(
+            "Bundesland-Filter (z. B. BW, Bayern, Baden-Württemberg); "
+            "mehrfach oder kommagetrennt. Ohne Angabe gilt `lmw config bundesland`."
+        ),
+    )
+    parser.add_argument(
+        "--grund",
+        action="append",
+        metavar="GRUND",
+        help=(
+            "Grund-Filter (z. B. allergene, fremdkoerper, krankheitserreger); "
+            "mehrfach oder kommagetrennt."
+        ),
+    )
+    parser.add_argument(
+        "--typ",
+        action="append",
+        metavar="TYP",
+        help=(
+            "Produkttyp (z. B. lebensmittel, bedarfsgegenstaende, "
+            "babyundkinderprodukte, kosmetischemittel, mittelzumtaetowieren "
+            "oder lebensmittel/fleischundwurstwaren); mehrfach oder kommagetrennt."
+        ),
+    )
+    parser.add_argument(
+        "--tage",
+        type=_positive_int,
+        metavar="N",
+        help=f"Zeitfenster in Tagen, positive Zahl (Standard: {tage_default}).",
+    )
+    parser.add_argument(
+        "--limit",
+        type=_limit,
+        default=20,
+        metavar="N",
+        help="Höchstens N Treffer ausgeben, 1-100 (Standard: 20).",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Ausgabe als ein JSON-Objekt (automatisch, wenn stdout keine TTY ist).",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -76,23 +116,46 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="kommando", required=True)
 
     neu = subparsers.add_parser("neu", help="neueste Warnungen anzeigen")
-    _add_filters(neu)
+    _add_filters(neu, tage_default="14")
     neu.set_defaults(func=_cmd_neu)
 
     suche = subparsers.add_parser("suche", help="nach Produkt oder Marke suchen")
-    suche.add_argument("begriff", nargs="+", metavar="BEGRIFF")
-    _add_filters(suche)
+    suche.add_argument(
+        "begriff",
+        nargs="+",
+        metavar="BEGRIFF",
+        help="Suchbegriff, z. B. Pinienkerne oder dennree.",
+    )
+    _add_filters(suche, tage_default="unbegrenzt")
     suche.set_defaults(func=_cmd_suche)
 
     zeige = subparsers.add_parser("zeige", help="eine Meldung im Detail ansehen")
-    zeige.add_argument("auswahl", nargs="+", metavar="AUSWAHL")
-    zeige.add_argument("--erster", action="store_true")
-    zeige.add_argument("--json", action="store_true")
+    zeige.add_argument(
+        "auswahl",
+        nargs="+",
+        metavar="AUSWAHL",
+        help="Kurz-ID (z. B. 261105_02) oder Suchbegriff.",
+    )
+    zeige.add_argument(
+        "--erster",
+        action="store_true",
+        help="Ohne Nachfrage den ersten Treffer wählen (für Agenten).",
+    )
+    zeige.add_argument(
+        "--json",
+        action="store_true",
+        help="Ausgabe als ein JSON-Objekt (automatisch, wenn stdout keine TTY ist).",
+    )
     zeige.set_defaults(func=_cmd_zeige)
 
     watch = subparsers.add_parser("watch", help="neue Warnungen seit dem letzten Lauf")
-    watch.add_argument("begriff", nargs="*", metavar="BEGRIFF")
-    _add_filters(watch)
+    watch.add_argument(
+        "begriff",
+        nargs="*",
+        metavar="BEGRIFF",
+        help="Optionaler Suchbegriff, z. B. Pinienkerne.",
+    )
+    _add_filters(watch, tage_default="unbegrenzt")
     watch.set_defaults(func=_cmd_watch)
 
     config = subparsers.add_parser("config", help="Einstellungen verwalten")
@@ -100,11 +163,24 @@ def build_parser() -> argparse.ArgumentParser:
     bundesland = config_sub.add_parser(
         "bundesland", help="Bundesland merken oder anzeigen"
     )
-    bundesland.add_argument("name", nargs="*", metavar="NAME|KÜRZEL")
-    bundesland.add_argument("--json", action="store_true")
+    bundesland.add_argument(
+        "name",
+        nargs="*",
+        metavar="NAME|KÜRZEL",
+        help="Bundesland per Name oder Kürzel (z. B. Baden-Württemberg oder BW).",
+    )
+    bundesland.add_argument(
+        "--json",
+        action="store_true",
+        help="Ausgabe als ein JSON-Objekt (automatisch, wenn stdout keine TTY ist).",
+    )
     bundesland.set_defaults(func=_cmd_config_bundesland)
     pfad = config_sub.add_parser("pfad", help="Pfad der Konfigurationsdatei zeigen")
-    pfad.add_argument("--json", action="store_true")
+    pfad.add_argument(
+        "--json",
+        action="store_true",
+        help="Ausgabe als ein JSON-Objekt (automatisch, wenn stdout keine TTY ist).",
+    )
     pfad.set_defaults(func=_cmd_config_pfad)
     return parser
 

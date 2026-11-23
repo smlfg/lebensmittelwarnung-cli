@@ -227,3 +227,15 @@ def test_strg_c_ist_exit_130_ohne_traceback(workspace, monkeypatch, capsys):
     captured = capsys.readouterr()
     assert "Traceback" not in captured.out
     assert "Traceback" not in captured.err
+
+
+def test_hilfe_erklaert_optionen(capsys):
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["neu", "--help"])
+
+    assert excinfo.value.code == 0
+    out = capsys.readouterr().out
+    assert "Bundesland-Filter" in out
+    assert "Zeitfenster in Tagen" in out
+    assert "Standard: 14" in out
+    assert "1-100" in out
