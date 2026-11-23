@@ -1,92 +1,99 @@
-# UX-Spec: kurstool
+# UX-Spec: lmw
 
-Diese Datei ist die Vorlage für `docs/UX.md` in jedem neuen Repo. Sie wird vor der ersten Codezeile ausgefüllt. Alle Befehle sind so abtippbar, wie ein Mensch sie im Terminal eingibt. Beispielwerte (Tool `kurstool`, Kursnummern, Mails auf `.invalid`) werden durch die echten Werte des Projekts ersetzt.
+`lmw` liest die offiziellen Lebensmittel- und Produktwarnungen von
+lebensmittelwarnung.de (Bundesländer und BVL). Alle Abrufe sind lesende
+GET-Requests. Es gibt keinen Login und keine schreibende Web-Aktion; deshalb
+hat diese Spec keine `credential_env` und keine `ux-formsteps`. UX09 entfällt
+damit als „keine schreibende Sitzung“ (SKIP ist zulässig).
 
-Ablauf beim Ausfüllen:
-
-1. Website live öffnen und die drei wichtigsten Aufgaben eines Menschen heraussuchen.
-2. Jede Aufgabe als Sitzung mitschreiben: Befehl, Eingabe, erwartete Ausgabe.
-3. Lesende Routen und alle Formularschritte der schreibenden Aktion ergänzen.
-4. Fixtures unter `tests/fixtures/ux/` ablegen.
-5. `python tests/harness/ux_check.py --spec-only` laufen lassen; erst bei grünem UX01 weiterbauen.
+Die Sitzungen sind am 23.11.2026 live gegen die echte Seite erkundet und für
+den Fake-Server gekürzt. `LMW_HEUTE` macht die datumsabhängige Auswahl
+(`--tage`) in Tests deterministisch.
 
 ## Meta
 
-Das Meta-Objekt benennt den Befehlsnamen im PATH, den Installationsbefehl und alle Umgebungsvariablen. `base_url_env` ist Pflicht, sobald es Routen oder Formsteps gibt. `credential_env` führt dazu, dass das Tool einen `login`-Befehl haben muss.
-
 ```ux-meta
-{"tool": "kurstool",
- "install": "pipx install git+https://github.com/smlfg/kurstool-cli",
- "base_url_env": "KURSTOOL_BASE_URL",
- "env": {"KURSTOOL_STATUSGRUPPE": "studierende"},
- "credential_env": ["KURSTOOL_LOGIN_USER", "KURSTOOL_LOGIN_PASSWORD"]}
+{"tool": "lmw",
+ "install": "pipx install git+https://github.com/smlfg/lebensmittelwarnung-cli",
+ "base_url_env": "LMW_BASE_URL",
+ "env": {"LMW_HEUTE": "2026-11-23"}}
 ```
 
 ## Sitzungen
 
-Jede Sitzung ist eine Nutzer-Aufgabe. Es müssen mindestens drei sein, darunter Login, Suche per Name und eine schreibende Aktion. `$` ist ein Befehl, `>` eine Eingabe, `<` eine erwartete Ausgabe und `!` der erwartete Exit-Code. Der Installationsbefehl wird von der Harness durch eine lokale Installation in ein frisches venv ersetzt.
+### Installation und neueste Warnungen für ein Bundesland
 
-### Installation und Login
-
-Der Login fragt im Terminal interaktiv nach Benutzer und Passwort. Das Passwort wird nicht angezeigt und nicht gespeichert; die Sitzung landet im Schlüsselbund oder in einer Datei mit Rechten 0600. Die Zugangsdaten stammen aus einem Testkonto, nie aus echten Daten.
+Die erste Sitzung installiert das Werkzeug und zeigt die Warnungen der letzten
+14 Tage, die Baden-Württemberg betreffen. Das Bundesland ist ein Name oder
+Kürzel; die ID in der zweiten Zeile jedes Treffers ist die Kurz-ID für
+`lmw zeige`.
 
 ```ux-session
-$ pipx install git+https://github.com/smlfg/kurstool-cli
-< kurstool
-$ kurstool login
-< Benutzer:
-> max.mustermann@example.invalid
-< Passwort:
-> geheim
-< Login erfolgreich
+$ pipx install git+https://github.com/smlfg/lebensmittelwarnung-cli
+< lmw
+$ lmw neu --bundesland BW
+< Neueste Warnungen (Baden-Württemberg, letzte 14 Tage): 10 Treffer
+< 21.11.2026  Parmentine Speisekartoffeln rot,1,5 Kilogramm
+< Lebensmittel · Gesundheitsschädliche Substanz · ID 261121_22
+< 19.11.2026  Appetiter Streichmettwurst fein
+< Lebensmittel · Krankheitserreger · ID 261119_20
+< Tipp: lmw zeige
 ! exit 0
 ```
 
-### Kurse nach Namen suchen
+### Nach einem Produkt suchen
 
-Der Suchbegriff ist positional. Die Ausgabe zeigt Namen und Kursnummer, damit ein Mensch ohne Nachschlagen weiterarbeiten kann.
+Der Suchbegriff steht positional. Die Ausgabe nennt Datum, Produkt, Grund und
+Kurz-ID, damit ein Mensch direkt mit `lmw zeige` weiterarbeiten kann.
 
 ```ux-session
-$ kurstool search volleyball
-< 1) Volleyball Anfänger (Kurs 32304)
-< 2) Volleyball Fortgeschritten (Kurs 32305)
+$ lmw suche Pinienkerne
+< 4 Treffer für „Pinienkerne“
+< 06.11.2026  dmBio Pinienkerne, 60 Gramm
+< 05.11.2026  Alnatura Pinienkerne und Alnatura Salatkerne-Mix
+< 05.11.2026  dennree Pinienkerne, 60 Gramm
 ! exit 0
 ```
 
-### Kurs verbindlich buchen
+### Eine Meldung im Detail ansehen
 
-Die schreibende Aktion zeigt zuerst Kurs, Ort und Preis. Danach fragt sie mit Default Nein. Erst nach `j` werden alle Formularschritte bis zur endgültigen Bestätigung gesendet. Bei `N` endet der Befehl ohne Request an einen Schritt ohne `before_confirm`.
+Bei mehreren Treffern fragt `lmw zeige` im Terminal nach einer Nummer. Ohne TTY
+gibt es stattdessen eine Liste und Exit 2; `--erster` wählt für Agenten den
+ersten Treffer. Die Detailansicht zeigt die Felder der Meldungsseite lesbar
+untereinander.
 
 ```ux-session
-$ kurstool book "Volleyball Anfänger"
-< Kurs: Volleyball Anfänger (32304)
-< Ort: Sporthalle Nord
-< Preis: 25,00 EUR
-< Buchung verbindlich? [j/N]
-> j
-< Buchung bestätigt
-< Bestätigungsnummer: KB-2026-0042
+$ lmw zeige Pinienkerne
+< Mehrere Treffer für „Pinienkerne“
+< 3) 05.11.2026  dennree Pinienkerne, 60 Gramm
+< Auswahl [1-4]:
+> 3
+< dennree Pinienkerne, 60 Gramm
+< Haltbarkeit: Mindesthaltbarkeitsdatum 03.06.2027 und 16.06.2027
+< Hersteller: dennree GmbH, Hofer Straße 11, 95183 Töpen
+< Grund: Krankheitserreger
+< Betroffene Bundesländer: Baden-Württemberg, Bayern, Berlin
+< Vertrieb über: Die Ware ist bei Denns BioMarkt
+< Empfehlung: Empfehlung der Firma dennree GmbH
 ! exit 0
 ```
 
 ## Lesende Routen
 
-Hier stehen alle Routen, die die Sitzungen gegen den Fake-Server brauchen. `path` wird ohne Querystring exakt verglichen; `query_contains` ist optional. Der Login ist ein POST, löst aber keine Buchung aus und gehört deshalb zu den lesenden Routen. Die Antwortdateien liegen relativ zum Repo.
+Die Liste für `lmw neu` nutzt die Expertensuche mit Bundesland- und
+Datumsfilter. `lmw suche` nutzt dieselbe Route mit `templateQueryString`.
+`lmw zeige` sucht zuerst und lädt danach die Meldungsseite. `path` wird ohne
+Querystring verglichen; die Reihenfolge entscheidet bei gleichem Pfad.
 
 ```ux-routes
-[{"method":"POST","path":"/login","response":"tests/fixtures/ux/login_erfolg.html","status":200,"content_type":"text/html; charset=utf-8"},
- {"method":"GET","path":"/kurse","query_contains":"volleyball","response":"tests/fixtures/ux/kurse.html","status":200,"content_type":"text/html; charset=utf-8"},
- {"method":"GET","path":"/kurse/32304","response":"tests/fixtures/ux/kurs_32304.html","status":200,"content_type":"text/html; charset=utf-8"}]
+[{"method":"GET","path":"/SiteGlobals/Forms/Suche/Expertensuche/Expertensuche_Formular.html","query_contains":"lastChangeAfter=2026-11-09","response":"tests/fixtures/ux/liste_neu_bw.html","status":200,"content_type":"text/html; charset=utf-8"},
+ {"method":"GET","path":"/SiteGlobals/Forms/Suche/Expertensuche/Expertensuche_Formular.html","query_contains":"Pinienkerne","response":"tests/fixtures/ux/suche_pinienkerne.html","status":200,"content_type":"text/html; charset=utf-8"},
+ {"method":"GET","path":"/___lebensmittelwarnung.de/Meldungen/2026/11_November/261105_02_BY_Pinienkerne/261105_02_BY_Pinienkerne.html","response":"tests/fixtures/ux/detail_dennree.html","status":200,"content_type":"text/html; charset=utf-8"}]
 ```
 
-## Formularschritte der schreibenden Aktion
+## Keine schreibende Aktion
 
-Die Liste enthält ALLE Requests in Reihenfolge, bis die Buchung endgültig bestätigt ist. `sends` nennt Feldnamen, die im Body vorkommen müssen; ein `*` am Ende erlaubt Präfix-Treffer. `before_confirm: true` ist nur für Schritte erlaubt, die vor der `[j/N]`-Frage laufen und nichts verbindlich auslösen, zum Beispiel das Öffnen des Formulars. `live: erkundet` heißt lesend auf der echten Seite gesehen, `live: synthetisch` heißt nachgebaut und als solches markiert.
-
-```ux-formsteps
-[{"id":"formular_oeffnen","method":"POST","path":"/buchen/32304","sends":["kurs_id"],"response":"tests/fixtures/ux/buchen_formular.html","before_confirm":true,"live":"erkundet"},
- {"id":"teilnehmerdaten","method":"POST","path":"/buchen/32304","sends":["vorname","nachname","email","statusgruppe"],"response":"tests/fixtures/ux/buchen_uebersicht.html","live":"synthetisch"},
- {"id":"verbindlich","method":"POST","path":"/buchen/32304","sends":["bestaetigungstoken"],"response":"tests/fixtures/ux/buchen_bestaetigt.html","final":true,"live":"synthetisch"}]
-```
-
-Der letzte Schritt trägt `"final": true`. Fehlt ein Schritt oder endet die Aktion nach dem ersten Request, meldet `ux_check.py` UX08 und `ux_session.py` bricht den Lauf ab. Beide Gates müssen grün sein, bevor der Build als fertig gilt.
+`lmw` verändert keine Daten auf der Website. Damit entfallen `ux-formsteps`,
+`credential_env`, `login`, die `[j/N]`-Bestätigung und UX09. Watch speichert nur
+lokal die zuletzt gesehenen IDs unter `~/.local/state/lebensmittelwarnung-cli`
+(0600) und sendet ausschließlich lesende GET-Requests.
