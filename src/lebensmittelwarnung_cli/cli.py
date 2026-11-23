@@ -94,6 +94,18 @@ def build_parser() -> argparse.ArgumentParser:
     watch.add_argument("begriff", nargs="*", metavar="BEGRIFF")
     _add_filters(watch)
     watch.set_defaults(func=_cmd_watch)
+
+    config = subparsers.add_parser("config", help="Einstellungen verwalten")
+    config_sub = config.add_subparsers(dest="config_kommando", required=True)
+    bundesland = config_sub.add_parser(
+        "bundesland", help="Bundesland merken oder anzeigen"
+    )
+    bundesland.add_argument("name", nargs="*", metavar="NAME|KÜRZEL")
+    bundesland.add_argument("--json", action="store_true")
+    bundesland.set_defaults(func=_cmd_config_bundesland)
+    pfad = config_sub.add_parser("pfad", help="Pfad der Konfigurationsdatei zeigen")
+    pfad.add_argument("--json", action="store_true")
+    pfad.set_defaults(func=_cmd_config_pfad)
     return parser
 
 
@@ -501,6 +513,49 @@ def _cmd_watch(args) -> int:
             teile.append(", ".join(item["gruende"]))
         teile.append(f"ID {item.get('id')}")
         print(" · ".join(teile))
+    return 0
+
+
+def _cmd_config_bundesland(args) -> int:
+    value = " ".join(args.name).strip()
+    if not value:
+        data = load_config()
+        name = data.get("bundesland")
+        slug = data.get("slug")
+        if _json_mode(args):
+            payload = {
+                "bundesland": name,
+                "slug": slug,
+                "pfad": str(config_path()),
+            }
+            print(json.dumps(payload, ensure_ascii=False))
+        elif name:
+            print(f"Bundesland: {name} ({slug})")
+        else:
+            print(f"Kein Bundesland gesetzt. Pfad: {config_path()}")
+        return 0
+    try:
+        slug = bundesland_slug(value)
+    except UnknownFilter as exc:
+        raise UsageError(str(exc)) from exc
+    name = BUNDESLAENDER[slug]
+    data = load_config()
+    data.update({"bundesland": name, "slug": slug})
+    save_config(data)
+    if _json_mode(args):
+        payload = {"bundesland": name, "slug": slug, "pfad": str(config_path())}
+        print(json.dumps(payload, ensure_ascii=False))
+    else:
+        print(f"Bundesland gespeichert: {name}")
+    return 0
+
+
+def _cmd_config_pfad(args) -> int:
+    path = str(config_path())
+    if _json_mode(args):
+        print(json.dumps({"pfad": path}, ensure_ascii=False))
+    else:
+        print(path)
     return 0
 
 
