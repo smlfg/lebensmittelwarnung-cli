@@ -89,6 +89,11 @@ def build_parser() -> argparse.ArgumentParser:
     zeige.add_argument("--erster", action="store_true")
     zeige.add_argument("--json", action="store_true")
     zeige.set_defaults(func=_cmd_zeige)
+
+    watch = subparsers.add_parser("watch", help="neue Warnungen seit dem letzten Lauf")
+    watch.add_argument("begriff", nargs="*", metavar="BEGRIFF")
+    _add_filters(watch)
+    watch.set_defaults(func=_cmd_watch)
     return parser
 
 
@@ -440,6 +445,62 @@ def _cmd_zeige(args) -> int:
         print(json.dumps(detail, ensure_ascii=False))
     else:
         _print_detail(detail)
+    return 0
+
+
+def _cmd_watch(args) -> int:
+    begriff = " ".join(args.begriff).strip() or None
+    heute = today()
+    bundeslaender = _resolve_bundeslaender(args.bundesland, use_config=True)
+    gruende = _resolve_gruende(args.grund)
+    typen = _resolve_typen(args.typ)
+    client = Client()
+    results, _total = _fetch(
+        client,
+        begriff=begriff,
+        bundeslaender=bundeslaender,
+        gruende=gruende,
+        typen=typen,
+        tage=args.tage,
+        limit=args.limit,
+        heute=heute,
+    )
+    state = load_state()
+    seen = state.get("ids")
+    seen = [str(item) for item in seen] if isinstance(seen, list) else []
+    first = "ids" not in state
+    current = [str(item["id"]) for item in results if item.get("id")]
+    if first:
+        neue = []
+    else:
+        neue = [item for item in results if str(item.get("id")) not in set(seen)]
+    seen_after = sorted(set(seen) | set(current))
+    save_state({"ids": seen_after})
+    if _json_mode(args):
+        payload = {
+            "neu": [_public_item(item) for item in neue],
+            "anzahl_neu": len(neue),
+            "gesehen": len(seen_after),
+            "erster_lauf": first,
+        }
+        print(json.dumps(payload, ensure_ascii=False))
+        return 0
+    if first:
+        print(f"Erster Lauf: {len(current)} Warnungen gespeichert")
+        return 0
+    if not neue:
+        print("Keine neuen Warnungen.")
+        return 0
+    print(f"{len(neue)} neue Warnungen")
+    for item in neue:
+        print(f"{german_date(item.get('datum'))}  {item.get('titel')}")
+        teile = []
+        if item.get("typ"):
+            teile.append(str(item["typ"]))
+        if item.get("gruende"):
+            teile.append(", ".join(item["gruende"]))
+        teile.append(f"ID {item.get('id')}")
+        print(" · ".join(teile))
     return 0
 
 
