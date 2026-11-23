@@ -84,6 +84,43 @@ TYPEN: dict[str, str] = {
     "mittelzumtaetowieren": "Mittel zum Tätowieren",
 }
 
+TYP_UNTERKATEGORIEN: dict[str, tuple[str, ...]] = {
+    "lebensmittel": (
+        "babynahrung",
+        "eierundeiprodukte",
+        "eisundsuesswaren",
+        "fertiggerichteundteigware",
+        "fischeundmeeresfruechte",
+        "fleischundwurstwaren",
+        "getraenke",
+        "getreideundbackwaren",
+        "kakaokaffeeundtee",
+        "kraeuterundgewuerze",
+        "milchundmilchprodukte",
+        "nahrungsergaenzungsmittel",
+        "nuesseundknabberwaren",
+        "obstundgemuese",
+        "sonstigelebensmittel",
+    ),
+    "bedarfsgegenstaende": (
+        "geschirrundkuechenbedarf",
+        "kleidungundtextilien",
+        "lebensmittelimitate",
+        "schmuckundaccessoires",
+        "sonstigebedarfsgegenstaende",
+        "spielwaren",
+    ),
+    "kosmetischemittel": (
+        "gesichtspflege",
+        "haarpflegeprodukte",
+        "koerperpflegeundkoerperhygiene",
+        "lebensmittelimitate",
+        "makeup",
+        "sonstigekosmetischemittel",
+        "zahnundmundhygiene",
+    ),
+}
+
 TYP_ALIASES: dict[str, str] = {
     "lebensmitteln": "lebensmittel",
     "bedarfsgegenstand": "bedarfsgegenstaende",
@@ -177,3 +214,11 @@ def typ_display(slug: str) -> str:
 
 def typ_category(slug: str) -> str:
     return slug.split("/", 1)[0]
+
+
+def typ_source_slugs(slug: str) -> list[str]:
+    """Slug(s) für die Quelle: Elternkategorien werden zu ihren Blättern."""
+    children = TYP_UNTERKATEGORIEN.get(slug)
+    if not children:
+        return [slug]
+    return [f"{slug}/{child}" for child in children]

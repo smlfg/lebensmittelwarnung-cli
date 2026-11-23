@@ -12,6 +12,7 @@ from lebensmittelwarnung_cli.filters import (
     typ_category,
     typ_display,
     typ_slug,
+    typ_source_slugs,
 )
 
 
@@ -75,3 +76,19 @@ def test_typ_hilfen():
 def test_unbekannter_typ_ist_usage_fehler():
     with pytest.raises(UnknownFilter):
         typ_slug("Raumschiff")
+
+
+def test_elternkategorie_wird_zu_blaettern():
+    slugs = typ_source_slugs("lebensmittel")
+
+    assert "lebensmittel/fleischundwurstwaren" in slugs
+    assert "lebensmittel/obstundgemuese" in slugs
+    assert "lebensmittel" not in slugs
+    assert len(slugs) == 15
+
+
+def test_blattslug_bleibt_unveraendert():
+    assert typ_source_slugs("lebensmittel/fleischundwurstwaren") == [
+        "lebensmittel/fleischundwurstwaren"
+    ]
+    assert typ_source_slugs("babyundkinderprodukte") == ["babyundkinderprodukte"]

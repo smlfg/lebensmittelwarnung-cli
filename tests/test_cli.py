@@ -8,6 +8,7 @@ import shutil
 import stat
 import tempfile
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -50,6 +51,42 @@ def _fake_search(html: str):
         return html
 
     return search
+
+
+def _capture_search_query(monkeypatch) -> dict:
+    seen: dict[str, str] = {}
+
+    def fake_get(self, path):
+        seen["path"] = path
+        return ""
+
+    monkeypatch.setattr(cli.Client, "get", fake_get)
+    return seen
+
+
+def _query_value(path: str, key: str) -> str:
+    query = parse_qs(urlsplit(path).query)
+    return query[key][0]
+
+
+def test_elternkategorie_typ_wird_zu_blaettern_erweitert(workspace, monkeypatch):
+    seen = _capture_search_query(monkeypatch)
+
+    cli.Client().search(typen=["lebensmittel"], limit=100)
+
+    value = _query_value(seen["path"], "cl2Taxonomies_Typ")
+    assert "/c/typ/lebensmittel/fleischundwurstwaren" in value
+    assert "/c/typ/lebensmittel " not in value + " "
+    assert not value.endswith("/c/typ/lebensmittel\"")
+
+
+def test_blattslug_typ_bleibt_einzeln(workspace, monkeypatch):
+    seen = _capture_search_query(monkeypatch)
+
+    cli.Client().search(typen=["lebensmittel/fleischundwurstwaren"], limit=100)
+
+    value = _query_value(seen["path"], "cl2Taxonomies_Typ")
+    assert value == '"/c/typ/lebensmittel/fleischundwurstwaren"'
 
 
 def test_neu_json_gegen_fixture(workspace, monkeypatch, capsys):

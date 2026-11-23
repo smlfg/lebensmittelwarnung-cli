@@ -13,7 +13,7 @@ from urllib.parse import urlencode, urlsplit
 import httpx
 
 from .errors import NetworkError, UsageError
-from .filters import bundesland_slug, grund_slug, typ_slug
+from .filters import bundesland_slug, grund_slug, typ_slug, typ_source_slugs
 
 DEFAULT_BASE_URL = "https://www.lebensmittelwarnung.de"
 LIST_PATH = "/SiteGlobals/Forms/Suche/Expertensuche/Expertensuche_Formular.html"
@@ -160,7 +160,9 @@ class Client:
             slugs = [grund_slug(value) for value in gruende]
             params.append(("cl2Taxonomies_Grund", _taxonomy("grund", slugs)))
         if typen:
-            slugs = [typ_slug(value) for value in typen]
+            slugs = []
+            for value in typen:
+                slugs.extend(typ_source_slugs(typ_slug(value)))
             params.append(("cl2Taxonomies_Typ", _taxonomy("typ", slugs)))
         if tage is not None:
             day = bezugstag or today()
