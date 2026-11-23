@@ -179,5 +179,4 @@ class Client:
 
 
 def _taxonomy(name: str, slugs: list[str]) -> str:
-    inner = " ".join(f"/c/{name}/{slug}" for slug in slugs)
-    return f'"{inner}"'
+    return "+".join(f'"/c/{name}/{slug}"' for slug in slugs)

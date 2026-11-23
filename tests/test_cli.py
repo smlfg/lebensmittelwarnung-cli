@@ -69,6 +69,17 @@ def _query_value(path: str, key: str) -> str:
     return query[key][0]
 
 
+def test_mehrfachfilter_werden_getrennt_kodiert(workspace, monkeypatch):
+    seen = _capture_search_query(monkeypatch)
+
+    cli.Client().search(gruende=["allergene", "fremdkoerper"], limit=100)
+
+    value = _query_value(seen["path"], "cl2Taxonomies_Grund")
+    assert value == (
+        '"/c/grund/allergene"+"…"'.replace("…", "/c/grund/fremdkoerper")
+    )
+
+
 def test_elternkategorie_typ_wird_zu_blaettern_erweitert(workspace, monkeypatch):
     seen = _capture_search_query(monkeypatch)
 
