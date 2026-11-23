@@ -30,7 +30,6 @@ Kürzel; die ID in der zweiten Zeile jedes Treffers ist die Kurz-ID für
 
 ```ux-session
 $ pipx install git+https://github.com/smlfg/lebensmittelwarnung-cli
-< lmw
 $ lmw neu --bundesland BW
 < Neueste Warnungen (Baden-Württemberg, letzte 14 Tage): 10 Treffer
 < 21.11.2026  Parmentine Speisekartoffeln rot,1,5 Kilogramm
