@@ -1,34 +1,43 @@
-# cli-mcp-template
-Project template for CLIs and MCP servers with the shared test suite
+# lebensmittelwarnung-cli
 
-> **Hinweis:** Die Fabrik, die aus dieser Vorlage Werkzeuge baut (Workflow, UX-Gate, Pipeline), liegt jetzt in [smlfg/software-factory](https://github.com/smlfg/software-factory). Die Vorlage selbst bleibt vorerst hier.
+Offizielle Lebensmittel- und Produktwarnungen der Bundesländer und des BVL im
+Terminal. `lmw` liest die Meldungen von [lebensmittelwarnung.de](https://www.lebensmittelwarnung.de),
+sucht nach Produkt oder Marke, filtert nach Bundesland, Grund und Typ und zeigt
+die vollständige Meldung. Alle Abrufe sind lesend; ein Konto ist nicht nötig.
 
-## Schritt 0: UX-Spec zuerst
+## Schnellstart
 
-Der komplette Ablauf steht in [agent-learnings/WORKFLOW.md](https://github.com/smlfg/agent-learnings/blob/main/WORKFLOW.md).
+```bash
+pipx install git+https://github.com/smlfg/lebensmittelwarnung-cli
+lmw neu --bundesland BW
+lmw suche Pinienkerne
+lmw zeige Pinienkerne
+```
 
-1. Vor jeder Codezeile `docs/UX.md` ausfüllen (Vorlage liegt hier): die 3 wichtigsten Nutzer-Aufgaben als abtippbare Terminal-Sitzungen (pipx-Installation, `<tool> login`, Suche per Name, schreibende Aktion bis zur letzten Seite mit `[j/N]`), dazu alle live erkundeten Formularschritte und Fixtures unter `tests/fixtures/ux/`.
-2. Spec prüfen: `python3 tests/harness/ux_spec.py docs/UX.md`
-3. Gate nach dem Bau (beide müssen grün sein, sonst ist der Build nicht fertig):
-   - `python3 tests/harness/ux_check.py .` (UX-Lint UX01–UX08)
-   - `python3 tests/harness/ux_session.py .` (spielt die Sitzungen im Pseudo-Terminal gegen einen Fake-Server durch und prüft, dass ALLE Formularschritte gesendet werden)
+Bei mehreren Treffern fragt `lmw zeige` nach einer Nummer. Für Skripte und
+Agenten gibt es `--json` und `--erster`.
 
-`tests/harness/` wird unverändert aus agent-learnings übernommen.
+## Was das Werkzeug kann
 
-## Pflichtregel: Bedienbarkeit für Menschen
+- `lmw neu`: neueste Warnungen, optional nach Bundesland, Grund, Typ und
+  Zeitraum (`--tage`) gefiltert.
+- `lmw suche BEGRIFF`: Volltextsuche nach Produkt, Marke oder Hersteller, mit
+  denselben Filtern.
+- `lmw zeige ID|BEGRIFF`: Detailansicht mit Produkt, Haltbarkeit, Charge,
+  Hersteller, Grund, möglichen Folgen, betroffenen Bundesländern und Vertrieb.
+- `lmw watch [BEGRIFF]`: meldet nur Warnungen, die seit dem letzten Aufruf neu
+  sind; der Zustand liegt unter `~/.local/state/lebensmittelwarnung-cli` (0600).
+- `lmw config bundesland NAME`: merkt sich ein Bundesland für spätere Aufrufe.
 
-Jede CLI muss für Menschen bedienbar sein: `login`-Kommando statt nur Env, Namen statt IDs, interaktive Bestätigung im TTY, `--confirm` nur für Agenten, README-Schnellstart.
+Die Basis-URL ist für Tests und eigene Gateways über `LMW_BASE_URL`
+überschreibbar. Datumsabhängige Befehle akzeptieren `LMW_HEUTE=JJJJ-MM-TT` für
+deterministische Läufe.
 
-- `login` fragt im Terminal interaktiv (Passwort per getpass) und speichert im Schlüsselbund oder in einer Config-Datei mit 0600; dazu `logout` und `whoami`/`status` ohne Passwort-Ausgabe. Env-Variablen überschreiben die Config (für Agenten).
-- Namen/Freitext positional (`tool book volleyball`, `tool search fahrrad`); mehrere Treffer → nummerierte Auswahl im TTY, ohne TTY Liste + Exit Usage.
-- Schreibende Aktionen: im TTY „… verbindlich? [j/N]“; `--confirm`/`--yes` nur für Agenten; ohne TTY und ohne Flag kein Request.
-- Terminal-Ausgabe lesbar; JSON mit `--json` oder wenn stdout kein Terminal ist.
-- Fehler nennen den nächsten Schritt, keine Tracebacks bei EOF/Strg+C/fehlender optionaler Abhängigkeit.
-- README beginnt mit „Schnellstart“: `pipx install git+https://github.com/smlfg/<repo>`, Login, ein typischer Befehl.
+## Entwicklung
 
-### Pflicht-QA-Prüfpunkt „Bedienbarkeit für Menschen“
+Die UX-Spec steht in [docs/UX.md](docs/UX.md), die Fixtures liegen unter
+`tests/fixtures/ux/`.
 
-1. Frisch per `pipx install git+…` installieren, Befehl direkt im PATH aufrufen.
-2. Haupt-Use-Case nur mit `--help` im Pseudo-Terminal (`script -qc "…" /dev/null`) durchspielen: `login` interaktiv, Suche per Name, Bestätigungsfrage mit „N“ → nichts gesendet.
-3. Ohne Login: Fehlermeldung nennt `tool login`.
-4. FAIL, wenn eine Kernaktion nur über Env-Variablen, interne IDs oder `--confirm` erreichbar ist.
+```bash
+python3 tests/harness/ux_check.py . --spec-only
+```
