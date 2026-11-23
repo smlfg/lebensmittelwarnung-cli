@@ -169,7 +169,7 @@ class Client:
             params.append(("lastChangeAfter", (day - timedelta(days=tage)).isoformat()))
         if limit is not None:
             params.append(("resultsPerPage", str(limit)))
-        return self.get(LIST_PATH + "?" + urlencode(params))
+        return self.get(LIST_PATH + "?" + urlencode(params, safe="+"))
 
     def detail(self, path: str | None = None, *, url: str | None = None) -> str:
         target = path or url

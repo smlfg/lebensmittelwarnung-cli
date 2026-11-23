@@ -65,7 +65,7 @@ def _capture_search_query(monkeypatch) -> dict:
 
 
 def _query_value(path: str, key: str) -> str:
-    query = parse_qs(urlsplit(path).query)
+    query = parse_qs(urlsplit(path).query.replace("+", "%2B"))
     return query[key][0]
 
 
@@ -86,9 +86,8 @@ def test_elternkategorie_typ_wird_zu_blaettern_erweitert(workspace, monkeypatch)
     cli.Client().search(typen=["lebensmittel"], limit=100)
 
     value = _query_value(seen["path"], "cl2Taxonomies_Typ")
-    assert "/c/typ/lebensmittel/fleischundwurstwaren" in value
-    assert "/c/typ/lebensmittel " not in value + " "
-    assert not value.endswith("/c/typ/lebensmittel\"")
+    assert '"/c/typ/lebensmittel/fleischundwurstwaren"' in value
+    assert '"/c/typ/lebensmittel"' not in value
 
 
 def test_blattslug_typ_bleibt_einzeln(workspace, monkeypatch):
