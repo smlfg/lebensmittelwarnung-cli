@@ -4,6 +4,7 @@
 - Version: `lmw 0.1.0`
 - Commit: `e3cb3b6` (docs(ux): UX-Gate-Bericht)
 - Prüfer: separate QA-Iteration (nicht der Entwickler), keine Code-Fixes
+- Nachprüfung S6: F1-F3 behoben und live erneut geprüft (siehe Ergebnis-Tabelle)
 - Installation: `pipx install git+https://github.com/smlfg/lebensmittelwarnung-cli`
   in `./scratch/pipx` (Protokoll `scratch/qa/pipx-install.log`), Aufruf nur über
   `PATH=$PWD/scratch/pipx/bin:$PATH`
@@ -21,7 +22,7 @@
 | Q03 | Version | `lmw --version` | Exit 0, Version | OK | `lmw 0.1.0`, Exit 0 |
 | Q04 | Haupt-Hilfe | `lmw --help` | Exit 0, Befehle sichtbar | OK | `{neu,suche,zeige,watch,config}`, Exit 0 |
 | Q05 | Hilfe aller Unterkommandos | `lmw <sub> --help` | Exit 0 | OK | alle fünf Exit 0 |
-| Q06 | Verständliche Optionshilfe | `lmw neu --help` | Bedeutung der Flags erklärt | FAIL | listet nur `--bundesland`, `--grund`, `--typ`, `--tage`, `--limit`, `--json` ohne Beschreibung |
+| Q06 | Verständliche Optionshilfe | `lmw neu --help` | Bedeutung der Flags erklärt | OK (nach Fix eb042b3) | `--bundesland`, `--grund`, `--typ`, `--tage`, `--limit`, `--json` mit Bedeutung, Werten und Defaults (`Standard: 14`, `1-100`), Exit 0 |
 | Q07 | README `neu` live im pty | `script -e -qc "lmw neu --bundesland BW"` | Text, 10 Treffer, Exit 0 | OK | `Neueste Warnungen (Baden-Württemberg, letzte 14 Tage): 10 Treffer` |
 | Q08 | README `suche` live im pty | `script -e -qc "lmw suche Pinienkerne"` | Text, 4 Treffer, Exit 0 | OK | `4 Treffer für „Pinienkerne“`, IDs 261106_04, 261105_03, 261105_02, 260130_18 |
 | Q09 | README `zeige` live im pty | `printf '3\n' \| script -e -qc "lmw zeige Pinienkerne"` | Auswahl per Nummer, Details, Exit 0 | OK | Liste, `Auswahl [1-4]:`, dennree-Details, Exit 0 |
@@ -40,11 +41,11 @@
 | Q22 | Limit | `lmw neu --bundesland BW --tage 7 --limit 3` | höchstens 3 | OK | `3 Treffer` |
 | Q23 | Grund-Filter über alle Treffer | `lmw neu --grund G --tage 3650 --limit 100 --json` für alle sechs Gründe | jeder Treffer passt | OK | krankheitserreger 62, fremdkoerper 44, gesundheitsschaedlichesubstanz 75, irrefuehrungundtaeuschung 1, rueckstaendeundkontaminaten 44, sonstigegruende 31; je 0 Ausreißer |
 | Q24 | Typ-Filter Blatt/Leaf | `lmw neu --typ babyundkinderprodukte` bzw. `.../lebensmittel/fleischundwurstwaren` | Treffer, Typ passt | OK | 3 Baby-Treffer; 14 Fleisch-/Wursttreffer (Anzeige `Lebensmittel`) |
-| Q25 | Typ-Filter Elternkategorie | `lmw neu --typ lebensmittel --tage 3650 --limit 100 --json` (auch `bedarfsgegenstaende`, `kosmetischemittel`) | Treffer aller Untertypen | FAIL | `anzahl: 0`; Blatt `lebensmittel/fleischundwurstwaren` liefert 14, `bedarfsgegenstaende/spielwaren` 17; Formular kennt nur Blatt-Slugs |
+| Q25 | Typ-Filter Elternkategorie | `lmw neu --typ lebensmittel --tage 3650 --limit 100 --json` (auch `bedarfsgegenstaende`, `kosmetischemittel`) | Treffer aller Untertypen | OK (nach Fix 2c6b1fe, 45e395c) | `lebensmittel` 97, `bedarfsgegenstaende` 34, `kosmetischemittel` 5 Treffer; Blatt `lebensmittel/fleischundwurstwaren` 14, `bedarfsgegenstaende/spielwaren` 17; alle Typen passend |
 | Q26 | Bundesland-Schreibvarianten | `--bundesland BW, "Baden-Württemberg", "baden wuerttemberg", "BaWü", bawue` | gleiche Treffer | OK | je 3 Treffer, IDs `261112_13, 261121_22, 261119_20` |
 | Q27 | Bundesland-Quellfilter wirksam | `lmw neu --tage 3650 --limit 100` vs. `--bundesland Bremen` | unterschiedliche Mengen | OK | ungefiltert 98, Bremen 98, aber 34 IDs nur in je einer Menge |
 | Q28 | Bundesland semantisch | `lmw zeige ID` für 8 Bremer Treffer | `Bremen` in betroffenen Ländern | OK | 8/8 enthalten `Bremen` |
-| Q29 | Mehrfachfilter | `lmw neu --bundesland "BW,Bayern" ...`; `--grund allergene --grund fremdkoerper`; `--grund allergene,fremdkoerper` | Vereinigung der Treffer | FAIL | jeweils `anzahl: 0`; Einzelwerte liefern 25 bzw. 44; direkter GET mit `"…"+"…"` liefert 50 Meldungen, CLI-Format 0 |
+| Q29 | Mehrfachfilter | `lmw neu --bundesland "BW,Bayern" ...`; `--grund allergene --grund fremdkoerper`; `--grund allergene,fremdkoerper` | Vereinigung der Treffer | OK (nach Fix dbaeeb8, 45e395c) | Grund mehrfach 69 = Vereinigung 25 (`allergene`) + 44 (`fremdkoerper`); kommagetrennt ebenfalls 69; `BW,Bayern` 5 = Vereinigung 5 + 5 |
 | Q30 | Umlaute/Tippvarianten bei Grund/Typ | `--grund Fremdkörper`, `fremdkoerper`, `Baby`, `Baby- und Kinderprodukte` | gleiche Treffer | OK | jeweils Exit 0 und passende Treffer |
 | Q31 | Unbekannte Filterwerte | `lmw neu --grund quatsch`, `--bundesland Atlantis`, `--typ raumschiff` | Exit 2, erlaubte Werte | OK | `Unbekanntes ... Erlaubt: ...`, Exit 2 |
 | Q32 | Ungültige Zahlen | `lmw neu --limit 0`, `--tage -1` | Exit 2 | OK | `muss eine positive ganze Zahl sein`, Exit 2 |
@@ -62,32 +63,19 @@
 | Q44 | Config Datei | `lmw config bundesland ...`, `config pfad` | 0600, von `neu` genutzt | OK | `600 .../config.json`; `neu` zeigt `(Baden-Württemberg, letzte 7 Tage)` |
 | Q45 | HTTP-Cache | nach Live-Aufrufen | Dateien 0600, Verzeichnis 0700 | OK | `700 lebensmittelwarnung-cli`, Einträge `600 ...json` |
 | Q46 | Schnellstart = UX-Sessions | `python3 tests/harness/ux_check.py . --spec-only` | UX01/UX06/UX07 PASS | OK | Bericht PASS |
-| Q47 | Testsuite | `scratch/venv/bin/pytest -q` | grün | OK | `69 passed` |
+| Q47 | Testsuite | `scratch/venv/bin/pytest -q` | grün | OK | `75 passed` (nach den Fix-Tests; vorher 69) |
 | Q48 | Keine Secrets/PII in QA-Ausgaben | Sichtprüfung der Logs | keine Zugangsdaten/Personendaten | OK | nur öffentliche Meldungs- und Firmendaten |
 
 ## Zählung
 
-- OK: 45
-- FAIL: 3
+- OK: 48
+- FAIL: 0
 - Gesamt: 48
 
 ## Offene FAILs
 
-1. **F1 (Q06): Optionshilfe ohne Beschreibungen.** `lmw <sub> --help`
-   nennt nur Flag-Namen; Bedeutung, erlaubte Werte und Defaults fehlen. Ein
-   Mensch muss README/INTERFACE lesen. Beleg: `lmw neu --help`.
-2. **F2 (Q25): Elternkategorien bei `--typ` liefern 0 Treffer.**
-   `lebensmittel`, `bedarfsgegenstaende` und `kosmetischemittel` sind laut
-   INTERFACE erlaubte Werte, die Quelle taxonomiert aber nur Blätter
-   (`/c/typ/lebensmittel/<untertyp>`). Beleg:
-   `lmw neu --typ lebensmittel --tage 3650 --limit 100 --json` → `anzahl: 0`,
-   dagegen `--typ lebensmittel/fleischundwurstwaren` → 14.
-3. **F3 (Q29): Mehrfachfilter liefern 0 Treffer.**
-   Mehrere Werte werden als *ein* Quoted-String mit Leerzeichen gesendet; die
-   Quelle erwartet getrennte Quoted-Werte, verbunden mit `+`. Betroffen sind
-   `--bundesland` (mehrfach/kommagetrennt), `--grund` und `--typ`. Beleg:
-   `--grund allergene --grund fremdkoerper` → 0, einzeln 25 bzw. 44; direkter
-   GET im Quellformat liefert 50 Meldungen.
+Keine. F1-F3 wurden behoben und am 2026-11-23 live erneut geprüft (Belege in
+den Zeilen Q06, Q25 und Q29).
 
 ## Hinweise (kein FAIL)
 
